@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<!--
+═══════════════════════════════════════════════════════════════════════════
+  AUDI QUATTRO (TYP 85) · 1990–1991 — INTERACTIVE 3D SHOWCASE
+  Single-file build · Three.js r128 · Vanilla ES2019 · No build step
+═══════════════════════════════════════════════════════════════════════════
+
+  HOW TO RUN
+    Simply open this file in any modern browser (Chrome/Edge/Firefox/Safari).
+    Requires internet access for the two CDN scripts (three.js + OrbitControls)
+    and Fontsource font CSS. Everything else — including the 3D model — is
+    generated procedurally in code.
+
+  CONTROLS
+    Drag .............. orbit            Scroll .......... zoom
+    Right-drag ........ pan              Click part ...... inspect / act
+    Double-click ...... frame part       Esc ............. close panel
+    Keys: 1–6 camera presets · E explode · A assemble · L lamps ·
+          W wireframe · Space auto-rotate · R reset · O overview
+
+  ARCHITECTURE (see numbered section banners inside <script>)
+    1 Config & data    2 Utils/tweens   3 Renderer bootstrap
+    4 Stage & lighting 5 Car geometry   6 Picking & info panel
+    7 Explode/assembly 8 Dock & input   9 Loader/intro
+   10 Loop & resize
+
+───────────────────────────────────────────────────────────────────────────
+  ★ GALLERY IMAGE MAP ★
+───────────────────────────────────────────────────────────────────────────
+  The gallery displays the six exterior, interior and engine references.
+  The separate wheel detail is used to shape the model's five-spoke alloys.
+
+  REFERENCE MAP (file · content)
+  ────────────────────────────────────────────────────────────────────────
+  01 · assets/gallery/quattro-front-3q.jpg      · 1600×1000 · Exterior, front ¾, studio dark bg
+  02 · assets/gallery/quattro-rear-3q.jpg       · 1600×1000 · Exterior, rear ¾, taillamp panel visible
+  03 · assets/gallery/quattro-headlamp-detail.jpg · 1600×1000 · Macro of quad headlamps + four rings
+  04 · assets/gallery/quattro-interior.jpg      · 1600×1000 · Cockpit: dash, wheel, 5-speed gate
+  05 · assets/gallery/quattro-engine-bay.jpg    · 1600×1000 · 2.2 L inline-five turbo, bonnet open
+  06 · assets/gallery/quattro-press-1990.jpg    · 1600×1000 · Archival 1990 press photo (B&W allowed)
+  07 · assets/gallery/wheel.jpg                 · wheel detail · five-spoke alloy reference
+═══════════════════════════════════════════════════════════════════════════
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Interactive 3D showcase of the Audi Quattro (Typ 85, 1990–1991). Orbit, explode and inspect the legend.">
+<title>AUDI QUATTRO 1990–1991 — Interactive 3D Showcase</title>
+
+<!-- Type: Inter via Fontsource (no Google Fonts) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/500.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/600.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/700.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/800.css">
+
+<style>
+/* ═══════════════ DESIGN TOKENS ═══════════════ */
+:root{
+  --bg:#07080a; --bg2:#0d0e12; --panel:rgba(13,14,18,.86);
+  --line:#22242b; --line2:#31343d;
+  --tx:#eceef2; --tx2:#9aa0ab; --tx3:#5d626c;
+  --red:#e30613; --red-h:#ff2733; --amber:#ffb300;
+  --radius:14px; --header-h:60px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--tx);
+  font-family:'Inter',system-ui,-apple-system,Segoe UI,sans-serif;
+  font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+::selection{background:var(--red);color:#fff}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;background:none;border:none;color:inherit}
+img{display:block;max-width:100%}
+.kicker{
+  font-size:10px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--red);display:inline-flex;align-items:center;gap:10px;
+}
+.kicker::before{content:"";width:26px;height:1px;background:var(--red)}
+h2.sec-title{font-size:clamp(26px,3.4vw,40px);font-weight:800;letter-spacing:-.02em;line-height:1.12;margin:14px 0 10px}
+.sec-sub{color:var(--tx2);max-width:640px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+
+/* ═══════════════ HEADER ═══════════════ */
+header{
+  position:fixed;inset:0 0 auto 0;height:var(--header-h);z-index:40;
+  display:flex;align-items:center;
+  background:rgba(7,8,10,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:14px;padding:0 28px;width:100%;max-width:1440px;margin:0 auto}
+.brand svg{display:block}
+.brand-name{font-weight:800;letter-spacing:.34em;font-size:13px}
+.brand-name small{display:block;font-weight:500;letter-spacing:.14em;font-size:9px;color:var(--tx2)}
+.brand-year{
+  margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--tx2);
+  border:1px solid var(--line2);padding:4px 10px;border-radius:99px;letter-spacing:.08em;
+}
+nav.main-nav{display:flex;gap:26px;margin-left:44px}
+nav.main-nav a{
+  font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--tx2);
+  padding:4px 0;position:relative;transition:color .2s;
+}
+nav.main-nav a::after{content:"";position:absolute;left:0;bottom:0;width:0;height:1px;background:var(--red);transition:width .25s}
+nav.main-nav a:hover{color:var(--tx)} nav.main-nav a:hover::after{width:100%}
+@media(max-width:820px){nav.main-nav{display:none}.brand-year{margin-left:auto}}
+
+/* ═══════════════ STAGE / VIEWER ═══════════════ */
+#showcase{position:relative;height:calc(100vh - var(--header-h));min-height:640px;margin-top:var(--header-h)}
+@supports(height:100svh){#showcase{height:calc(100svh - var(--header-h))}}
+#stage{
+  position:absolute;inset:0;user-select:none;
+  background:
+    radial-gradient(1100px 700px at 50% 26%,#161922 0%,#0b0c10 55%,#07080a 100%);
+}
+#stage canvas{position:absolute;inset:0;display:block;touch-action:none}
+.stage-fade{position:absolute;left:0;right:0;bottom:0;height:120px;pointer-events:none;
+  background:linear-gradient(to bottom,transparent,var(--bg))}
+.stage-tl{position:absolute;top:22px;left:26px;pointer-events:none;z-index:5}
+.stage-tl .kicker{margin-bottom:8px}
+.stage-tl h1{font-size:clamp(24px,3vw,38px);font-weight:800;letter-spacing:-.02em;line-height:1.05}
+.stage-tl h1 span{color:var(--tx3);font-weight:500}
+.stage-tl .sub{margin-top:6px;font-size:12px;color:var(--tx2);letter-spacing:.06em}
+.stage-tr{position:absolute;top:22px;right:26px;z-index:5;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.stat-chip{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--tx2);
+  background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:6px 13px;
+  backdrop-filter:blur(8px);
+}
+.stat-chip b{color:var(--tx);font-weight:600}
+.ghost-btn{
+  font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--tx2);
+  background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:8px 16px;
+  transition:all .2s;backdrop-filter:blur(8px);
+}
+.ghost-btn:hover{color:var(--tx);border-color:var(--red);box-shadow:0 0 0 1px rgba(227,6,19,.35)}
+.hint{
+  position:absolute;left:26px;bottom:20px;z-index:5;pointer-events:none;
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--tx3);
+}
+.hint b{color:var(--tx2);font-weight:600}
+@media(max-width:900px){.hint{display:none}}
+
+/* tooltip that follows the cursor over 3D parts */
+#tip{
+  position:absolute;z-index:6;pointer-events:none;opacity:0;transform:translate(-50%,-160%);
+  background:#0c0d11;border:1px solid var(--line2);border-left:2px solid var(--red);
+  padding:6px 12px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:.08em;
+  color:var(--tx);white-space:nowrap;transition:opacity .15s;
+}
+#tip small{display:block;font-weight:400;font-size:9.5px;color:var(--tx2);letter-spacing:.12em}
+#tip.on{opacity:1}
+
+/* ── dock (bottom control bar) ── */
+#dock{
+  position:absolute;bottom:22px;left:50%;transform:translateX(-50%);z-index:7;
+  display:flex;align-items:stretch;gap:6px;max-width:calc(100% - 32px);
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:8px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  box-shadow:0 18px 50px rgba(0,0,0,.5);overflow-x:auto;scrollbar-width:none;
+}
+#dock::-webkit-scrollbar{display:none}
+.dock-group{display:flex;align-items:center;gap:4px;flex:none}
+.dock-label{
+  font-size:9px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--tx3);
+  padding:0 8px 0 10px;flex:none;
+}
+.dock-sep{width:1px;background:var(--line2);margin:4px 4px;flex:none}
+.dock-btn{
+  font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--tx2);
+  padding:8px 12px;border-radius:8px;white-space:nowrap;position:relative;transition:all .18s;
+}
+.dock-btn:hover{color:var(--tx);background:rgba(255,255,255,.05)}
+.dock-btn.active{color:var(--tx);background:rgba(227,6,19,.14)}
+.dock-btn.active::before{
+  content:"";position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  width:4px;height:4px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);
+}
+.dock-btn.active{padding-left:18px}
+#swatches{gap:8px;padding:0 8px}
+.swatch{
+  width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.18);
+  transition:transform .18s,border-color .18s,box-shadow .18s;flex:none;
+}
+.swatch:hover{transform:scale(1.18)}
+.swatch.active{border-color:#fff;box-shadow:0 0 0 2px var(--red),0 0 14px rgba(227,6,19,.5)}
+@media(max-width:900px){
+  #dock{bottom:12px;padding:6px}
+  .dock-label{display:none}
+}
+
+/* ── part info panel ── */
+#panel{
+  position:absolute;top:88px;right:26px;width:308px;z-index:8;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  box-shadow:0 22px 60px rgba(0,0,0,.55);overflow:hidden;
+  transform:translateX(24px);opacity:0;pointer-events:none;
+  transition:transform .35s cubic-bezier(.22,.9,.3,1),opacity .3s;
+}
+#panel.open{transform:none;opacity:1;pointer-events:auto}
+#panel .p-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 0}
+#panel .p-close{color:var(--tx3);font-size:16px;line-height:1;padding:4px 8px;border-radius:6px;transition:.2s}
+#panel .p-close:hover{color:var(--tx);background:rgba(255,255,255,.07)}
+#panel .p-body{padding:4px 18px 18px}
+#pTitle{font-size:19px;font-weight:800;letter-spacing:-.01em;margin:6px 0 2px}
+#pSub{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+#pText{font-size:12.5px;color:var(--tx2);margin-top:10px}
+#pChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+#pChips span{
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--tx);
+  border:1px solid var(--line2);border-radius:99px;padding:4px 10px;background:rgba(255,255,255,.03);
+}
+#pActions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.p-act{
+  font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:9px 14px;border-radius:8px;border:1px solid var(--line2);color:var(--tx);
+  transition:.2s;background:rgba(255,255,255,.03);
+}
+.p-act:hover{border-color:var(--red);color:#fff;background:rgba(227,6,19,.18)}
+.p-act.primary{background:var(--red);border-color:var(--red)}
+.p-act.primary:hover{background:var(--red-h)}
+@media(max-width:900px){
+  #panel{top:auto;bottom:86px;left:12px;right:12px;width:auto;max-height:44vh;overflow-y:auto;
+    transform:translateY(20px)}
+  #panel.open{transform:none}
+}
+
+/* ═══════════════ SPEC SECTION ═══════════════ */
+section.block{padding:110px 0 30px}
+#specs .stat-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;margin-top:40px;
+}
+.stat{background:var(--bg2);padding:26px 22px;transition:background .25s}
+.stat:hover{background:#121419}
+.stat .num{font-size:clamp(30px,3vw,40px);font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.stat .num em{font-style:normal;font-size:.44em;font-weight:600;color:var(--tx2);margin-left:4px;letter-spacing:0}
+.stat .lbl{margin-top:10px;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--tx2)}
+.stat .lbl b{color:var(--red)}
+.spec-table{margin-top:44px;display:grid;grid-template-columns:1fr 1fr;gap:0 56px}
+@media(max-width:760px){.spec-table{grid-template-columns:1fr}}
+.spec-table h4{
+  font-size:10px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--tx3);
+  margin:26px 0 8px;padding-top:18px;border-top:1px solid var(--line);
+}
+.spec-table dl{display:grid;grid-template-columns:auto 1fr}
+.spec-table dt{font-size:12.5px;color:var(--tx3);padding:6px 18px 6px 0}
+.spec-table dd{font-size:12.5px;font-weight:500;color:var(--tx);font-variant-numeric:tabular-nums}
+
+/* ═══════════════ HISTORY TIMELINE ═══════════════ */
+.timeline{margin-top:48px;position:relative;padding-left:34px}
+.timeline::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:1px;background:linear-gradient(var(--red),var(--line) 40%)}
+.t-item{position:relative;padding:0 0 34px 8px}
+.t-item::before{
+  content:"";position:absolute;left:-30px;top:7px;width:9px;height:9px;border-radius:50%;
+  background:var(--bg);border:2px solid var(--red);box-shadow:0 0 0 4px rgba(227,6,19,.12);
+}
+.t-year{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--red);letter-spacing:.14em}
+.t-item h3{font-size:17px;font-weight:700;margin:4px 0 4px;letter-spacing:-.01em}
+.t-item p{font-size:13px;color:var(--tx2);max-width:660px}
+
+/* ═══════════════ GALLERY ═══════════════ */
+.ph-note{
+  display:inline-flex;align-items:center;gap:10px;margin-top:18px;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--amber);
+  border:1px solid rgba(255,179,0,.4);background:rgba(255,179,0,.06);
+  padding:8px 14px;border-radius:8px;
+}
+.ph-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
+@media(max-width:960px){.ph-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:620px){.ph-grid{grid-template-columns:1fr}}
+/* Real reference photography; captions sit over the image for a quiet editorial feel. */
+.ph-slot{position:relative;aspect-ratio:16/10;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#101115;transition:transform .25s,border-color .25s}
+.ph-slot:hover{border-color:#565b66;transform:translateY(-3px)}
+.ph-slot::after{content:"";position:absolute;inset:38% 0 0;background:linear-gradient(transparent,rgba(0,0,0,.78));pointer-events:none}
+.ph-slot img{width:100%;height:100%;object-fit:cover;transition:transform .5s,filter .35s;filter:saturate(.82)}
+.ph-slot:hover img{transform:scale(1.035);filter:saturate(1)}
+.ph-slot figcaption{position:absolute;z-index:1;left:16px;right:16px;bottom:13px;font-size:12px;font-weight:600;letter-spacing:.04em;color:#fff}
+
+/* ═══════════════ FOOTER ═══════════════ */
+footer{margin-top:110px;border-top:1px solid var(--line);padding:36px 0 46px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between}
+footer p{font-size:11px;color:var(--tx3);max-width:720px}
+footer .f-brand{font-weight:800;letter-spacing:.3em;font-size:11px;color:var(--tx2)}
+
+/* ═══════════════ LOADER ═══════════════ */
+#loader{
+  position:fixed;inset:0;z-index:60;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;
+  transition:opacity .6s ease .1s;
+}
+#loader.done{opacity:0;pointer-events:none}
+#loader .rings circle{stroke:#cfd2d8;fill:none;stroke-width:2.5;animation:ringpulse 1.5s ease-in-out infinite}
+#loader .rings circle:nth-child(2){animation-delay:.12s}
+#loader .rings circle:nth-child(3){animation-delay:.24s}
+#loader .rings circle:nth-child(4){animation-delay:.36s}
+@keyframes ringpulse{0%,100%{opacity:.35}50%{opacity:1}}
+#loader .l-title{font-weight:800;letter-spacing:.4em;font-size:14px}
+#loader .l-sub{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--tx3)}
+#loadTrack{width:220px;height:2px;background:var(--line);border-radius:2px;overflow:hidden}
+#loadBar{width:0%;height:100%;background:var(--red);transition:width .25s ease}
+noscript{position:fixed;inset:0;z-index:99;background:var(--bg);color:var(--tx);display:grid;place-items:center;text-align:center;padding:20px}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<noscript><p>This experience requires JavaScript and WebGL.<br>Please enable JavaScript or use a modern browser.</p></noscript>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<header>
+  <div class="brand">
+    <!-- Four rings mark (drawn inline — no image dependency) -->
+    <svg width="86" height="26" viewBox="0 0 104 30" aria-label="Four rings">
+      <circle cx="18" cy="15" r="12" fill="none" stroke="#cfd2d8" stroke-width="2.6"/>
+      <circle cx="34" cy="15" r="12" fill="none" stroke="#cfd2d8" stroke-width="2.6"/>
+      <circle cx="50" cy="15" r="12" fill="none" stroke="#cfd2d8" stroke-width="2.6"/>
+      <circle cx="66" cy="15" r="12" fill="none" stroke="#cfd2d8" stroke-width="2.6"/>
+    </svg>
+    <div class="brand-name">QUATTRO<small>TYP 85 · FINAL CHAPTER</small></div>
+    <nav class="main-nav" aria-label="Primary">
+      <a href="#showcase">Showcase</a>
+      <a href="#specs">Specification</a>
+      <a href="#history">History</a>
+      <a href="#gallery">Gallery</a>
+    </nav>
+    <span class="brand-year">1990 — 1991</span>
+  </div>
+</header>
+
+<main>
+<!-- ═══════════ 3D SHOWCASE ═══════════ -->
+<section id="showcase" aria-label="Interactive 3D viewer">
+  <div id="stage">
+    <div class="stage-fade"></div>
+    <div id="tip" role="status"></div>
+
+    <div class="stage-tl">
+      <span class="kicker">Interactive 3D · WebGL</span>
+      <h1>Audi quattro <span>/ 1990–91</span></h1>
+      <div class="sub">A hand-built Typ 85 study · orbit the car and inspect its details</div>
+    </div>
+
+    <div class="stage-tr">
+      <span class="stat-chip"><b>2.2 L I5</b> · 220 PS · quattro</span>
+      <button class="ghost-btn" id="btnOverview" title="Show overview (O)">ⓘ Overview</button>
+    </div>
+
+    <div class="hint"><b>DRAG</b> orbit · <b>SCROLL</b> zoom · <b>RIGHT-DRAG</b> pan · <b>CLICK</b> inspect · <b>DBL-CLICK</b> frame · keys <b>1–6 E A L W R</b></div>
+
+    <!-- control dock -->
+    <div id="dock" role="toolbar" aria-label="Viewer controls">
+      <div class="dock-group" role="group" aria-label="Camera presets">
+        <span class="dock-label">View</span>
+        <button class="dock-btn view-btn active" data-view="hero"   title="Hero view [1]">Front ¾</button>
+        <button class="dock-btn view-btn" data-view="side"   title="Side profile [2]">Profile</button>
+        <button class="dock-btn view-btn" data-view="rear"   title="Rear three-quarter [3]">Rear</button>
+        <button class="dock-btn view-btn" data-view="top"    title="Plan view [4]">Top</button>
+        <button class="dock-btn view-btn" data-view="under"  title="Underbody / drivetrain [5]">Underbody</button>
+        <button class="dock-btn view-btn" data-view="engine" title="Engine bay (opens bonnet) [6]">Engine</button>
+      </div>
+      <div class="dock-sep"></div>
+      <div class="dock-group" role="group" aria-label="Scene actions">
+        <span class="dock-label">Scene</span>
+        <button class="dock-btn toggle" id="btnExplode"  title="Exploded view [E]">Explode</button>
+        <button class="dock-btn"        id="btnAssemble" title="Play assembly sequence [A]">Assemble ▸</button>
+        <button class="dock-btn toggle" id="btnRotate"   title="Auto-rotate [Space]">Rotate</button>
+        <button class="dock-btn toggle" id="btnWire"     title="Wireframe [W]">Wireframe</button>
+        <button class="dock-btn toggle" id="btnLamps"    title="Headlamps [L]">Lamps</button>
+        <button class="dock-btn"        id="btnReset"    title="Reset camera [R]">Reset</button>
+      </div>
+      <div class="dock-sep"></div>
+      <div class="dock-group" id="swatches" role="group" aria-label="Paint colours"></div>
+    </div>
+
+    <!-- part info panel -->
+    <aside id="panel" aria-live="polite">
+      <div class="p-head">
+        <span class="kicker" id="pKicker">Component</span>
+        <button class="p-close" id="pClose" aria-label="Close panel">✕</button>
+      </div>
+      <div class="p-body">
+        <h3 id="pTitle">—</h3>
+        <div id="pSub">—</div>
+        <p id="pText"></p>
+        <div id="pChips"></div>
+        <div id="pActions"></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ═══════════ SPECIFICATIONS ═══════════ -->
+<section class="block" id="specs">
+  <div class="wrap">
+    <span class="kicker">01 — Specification</span>
+    <h2 class="sec-title">The numbers behind the legend.</h2>
+    <p class="sec-sub">By 1990 the original quattro had matured into its definitive form: the 20-valve, 220 PS turbocharged five-cylinder — the most powerful road-going Ur-quattro ever sold.</p>
+
+    <div class="stat-grid">
+      <div class="stat"><div class="num">220<em>PS</em></div><div class="lbl"><b>Peak power</b> · @ 5,900 rpm</div></div>
+      <div class="stat"><div class="num">309<em>Nm</em></div><div class="lbl"><b>Peak torque</b> · from 1,950 rpm</div></div>
+      <div class="stat"><div class="num">6.3<em>s</em></div><div class="lbl"><b>0–100 km/h</b></div></div>
+      <div class="stat"><div class="num">230<em>km/h</em></div><div class="lbl"><b>Top speed</b></div></div>
+      <div class="stat"><div class="num">2,226<em>cc</em></div><div class="lbl"><b>Inline-five</b> · 20-valve turbo</div></div>
+      <div class="stat"><div class="num">11,452</div><div class="lbl"><b>Units built</b> · 1980–1991</div></div>
+    </div>
+
+    <div class="spec-table">
+      <div>
+        <h4>Powertrain</h4>
+        <dl>
+          <dt>Engine</dt><dd>2.2 L DOHC 20v inline-five, longitudinal</dd>
+          <dt>Induction</dt><dd>KKK turbocharger + air-to-air intercooler</dd>
+          <dt>Gearbox</dt><dd>5-speed manual</dd>
+          <dt>Drive</dt><dd>Permanent quattro all-wheel drive</dd>
+          <dt>Differentials</dt><dd>Lockable centre &amp; rear</dd>
+        </dl>
+        <h4>Chassis</h4>
+        <dl>
+          <dt>Suspension F</dt><dd>MacPherson struts</dd>
+          <dt>Suspension R</dt><dd>Torsion-crank axle</dd>
+          <dt>Brakes</dt><dd>Ventilated discs front / solid rear</dd>
+          <dt>Wheels</dt><dd>15″ alloy · 195/60 VR15</dd>
+        </dl>
+      </div>
+      <div>
+        <h4>Dimensions</h4>
+        <dl>
+          <dt>Length</dt><dd>4,404 mm</dd>
+          <dt>Width</dt><dd>1,723 mm</dd>
+          <dt>Height</dt><dd>1,335 mm</dd>
+          <dt>Wheelbase</dt><dd>2,524 mm</dd>
+          <dt>Kerb weight</dt><dd>≈ 1,335 kg</dd>
+          <dt>Fuel tank</dt><dd>90 L</dd>
+        </dl>
+        <h4>Production</h4>
+        <dl>
+          <dt>Model years</dt><dd>1990–1991 (final series)</dd>
+          <dt>Plant</dt><dd>Ingolstadt, Germany</dd>
+          <dt>Total Ur-quattro</dt><dd>11,452 units, 1980–1991</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ HISTORY ═══════════ -->
+<section class="block" id="history">
+  <div class="wrap">
+    <span class="kicker">02 — History</span>
+    <h2 class="sec-title">From frozen test tracks to world titles.</h2>
+    <p class="sec-sub">The quattro did not merely win rallies — it changed what a road car could be. The 1990–91 cars are the final chapter of the original eleven-year run.</p>
+
+    <div class="timeline">
+      <div class="t-item"><span class="t-year">1980</span><h3>Geneva Motor Show debut</h3><p>An idea born from winter testing in Scandinavia: a turbocharged coupé with permanent all-wheel drive. Audi's new promise — <em>Vorsprung durch Technik</em>.</p></div>
+      <div class="t-item"><span class="t-year">1981</span><h3>First World Championship win</h3><p>The quattro takes its maiden WRC victory at the Rallye Sanremo, proving AWD is the future of rallying.</p></div>
+      <div class="t-item"><span class="t-year">1982</span><h3>World Rally Champions — Makes</h3><p>Audi secures the manufacturers' world title; Michèle Mouton pushes the title fight to the final round.</p></div>
+      <div class="t-item"><span class="t-year">1983</span><h3>Mikkola takes the drivers' crown</h3><p>Hannu Mikkola becomes World Rally Champion in the quattro A2.</p></div>
+      <div class="t-item"><span class="t-year">1984</span><h3>The double</h3><p>Stig Blomqvist wins the drivers' title and Audi adds a second manufacturers' crown.</p></div>
+      <div class="t-item"><span class="t-year">1985</span><h3>Sport quattro</h3><p>The short-wheelbase, 306 PS homologation icon arrives — 214 built.</p></div>
+      <div class="t-item"><span class="t-year">1987</span><h3>Pikes Peak record</h3><p>Walter Röhrl storms up the mountain in the Sport quattro S1 E2 in 10:47.85.</p></div>
+      <div class="t-item"><span class="t-year">1989</span><h3>The strongest five-cylinder</h3><p>The 2.2 L 20-valve turbo with 220 PS becomes the quattro's final heart.</p></div>
+      <div class="t-item"><span class="t-year">1991</span><h3>End of the line</h3><p>Production of the original quattro ends in May after 11,452 cars. The legend — and the word “quattro” — live on.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ GALLERY ═══════════ -->
+<!--
+  GALLERY — SUPPLIED REFERENCE PHOTOGRAPHS
+  01  assets/gallery/quattro-front-3q.jpg        1600×1000  Exterior · front three-quarter
+  02  assets/gallery/quattro-rear-3q.jpg         1600×1000  Exterior · rear three-quarter
+  03  assets/gallery/quattro-headlamp-detail.jpg 1600×1000  Detail · quad headlamps + rings
+  04  assets/gallery/quattro-interior.jpg        1600×1000  Interior · cockpit & dashboard
+  05  assets/gallery/quattro-engine-bay.jpg      1600×1000  Engine · 2.2 L inline-five turbo
+  06  assets/gallery/quattro-press-1990.jpg      1600×1000  Archive · 1990 press photo (B&W)
+-->
+<section class="block" id="gallery">
+  <div class="wrap">
+    <span class="kicker">03 — Gallery</span>
+    <h2 class="sec-title">Detail study.</h2>
+    <div class="ph-grid">
+      <!-- SLOT 01 · Exterior front three-quarter -->
+      <figure class="ph-slot" data-slot="01">
+        <img src="assets/gallery/quattro-front-3q.jpg" alt="Audi Quattro — front three-quarter view on a test track">
+        <figcaption>01 / Front three-quarter</figcaption>
+      </figure>
+      <!-- SLOT 02 · Rear three-quarter showing full-width taillamp panel -->
+      <figure class="ph-slot" data-slot="02">
+        <img src="assets/gallery/quattro-rear-3q.jpg" alt="Audi Quattro — rear three-quarter view">
+        <figcaption>02 / Rear three-quarter</figcaption>
+      </figure>
+      <!-- SLOT 03 · 1600×1000 · Macro detail of quad rectangular headlamps and grille rings -->
+      <figure class="ph-slot" data-slot="03">
+        <img src="assets/gallery/quattro-headlamp-detail.jpg" alt="Audi Quattro — rectangular headlamps and four-ring grille">
+        <figcaption>03 / Quad lamps &amp; grille</figcaption>
+      </figure>
+      <!-- SLOT 04 · 1600×1000 · Interior cockpit: dash, three-spoke wheel, gear lever -->
+      <figure class="ph-slot" data-slot="04">
+        <img src="assets/gallery/quattro-interior.jpg" alt="Audi Quattro 1990 — interior studio shot">
+        <figcaption>04 / Driver-focused cockpit</figcaption>
+      </figure>
+      <!-- SLOT 05 · 1600×1000 · Engine bay with bonnet open, longitudinal five-cylinder -->
+      <figure class="ph-slot" data-slot="05">
+         <img src="assets/gallery/quattro-engine-bay.jpg" alt="Audi Quattro 1990 — engine bay studio shot">
+        <figcaption>05 / 20-valve turbo five</figcaption>
+      </figure>
+      <!-- SLOT 06 · 1600×1000 · Archival 1990 press photograph, black & white acceptable -->
+      <figure class="ph-slot" data-slot="06">
+        <img src="assets/gallery/quattro-press-1990.jpg" alt="Audi Quattro 1990 — press studio shot">
+        <figcaption>06 / Period press photograph</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer>
+  <div class="wrap">
+    <span class="f-brand">QUATTRO · TYP 85</span>
+    <p>Independent interactive visual study — not affiliated with or endorsed by AUDI AG. All names and marks belong to their respective owners. The hand-built model is an illustrative approximation based on the supplied reference photographs.</p>
+    <p style="font-family:var(--mono);font-size:10px;letter-spacing:.1em">THREE.JS R128 · VANILLA JS · 60 FPS TARGET</p>
+  </div>
+</footer>
+
+<!-- ═══════════ LOADER ═══════════ -->
+<div id="loader" aria-hidden="true">
+  <svg class="rings" width="150" height="44" viewBox="0 0 120 34">
+    <circle cx="22" cy="17" r="13"/><circle cx="38" cy="17" r="13"/>
+    <circle cx="54" cy="17" r="13"/><circle cx="70" cy="17" r="13"/>
+  </svg>
+  <div class="l-title">AUDI QUATTRO</div>
+  <div class="l-sub">Preparing interactive showroom</div>
+  <div id="loadTrack"><div id="loadBar"></div></div>
+</div>
+
+<!-- Three.js r128 (UMD) + OrbitControls -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+(function(){
+'use strict';
+
+/* Guard: CDN failure or no WebGL → friendly message, no console spam */
+if (typeof THREE === 'undefined' || !THREE.OrbitControls){
+  document.getElementById('loader').innerHTML =
+    '<div class="l-sub" style="max-width:320px;text-align:center">Could not load the 3D engine (network/CDN required). Please check your connection and reload.</div>';
+  return;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   1 · CONFIG & DATA
+   ════════════════════════════════════════════════════════════════ */
+const REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const PAINTS = [
+  { name:'Tornado Red',      hex:0xA51822, css:'#a51822' },
+  { name:'Alpine White',     hex:0xE4E4DE, css:'#e4e4de' },
+  { name:'Copenhagen Blue',  hex:0x1A3A66, css:'#1a3a66' },
+  { name:'Malachite Green',  hex:0x11473A, css:'#11473a' },
+  { name:'Diamond Silver',   hex:0xB7BBC2, css:'#b7bbc2' },
+  { name:'Schwarz',          hex:0x111216, css:'#111216' }
+];
+
+const VIEWS = {
+  hero:   { pos:[ 6.6, 2.5,  6.9], tgt:[0,   0.62, 0]   },
+  side:   { pos:[ 0.2, 1.35, 7.6], tgt:[0,   0.66, 0]   },
+  rear:   { pos:[-6.8, 1.9,  2.4], tgt:[0,   0.60, 0]   },
+  top:    { pos:[ 0.02,9.8,  0.02],tgt:[0,   0,    0]   },
+  under:  { pos:[ 4.6,-2.1,  3.2], tgt:[0,   0.55, 0]   },
+  engine: { pos:[ 3.2, 2.0,  2.9], tgt:[1.55,0.72, 0]   }
+};
+
+/* Component copy for the info panel */
+const PART_INFO = {
+  overview:{ t:'Audi quattro — Typ 85', s:'1990–1991 · the final chapter',
+    b:'The car that dragged rallying into the all-wheel-drive era. This model is built entirely from procedural geometry — drag to orbit, scroll to zoom, and click any component to inspect it.',
+    chips:['2.2 L I5 turbo','220 PS','quattro AWD','11,452 built'] },
+  shell:{ t:'Body shell', s:'Galvanised steel monocoque',
+    b:'The Ur-quattro\u2019s angular, fully galvanised shell is famously rigid and corrosion-resistant. Try the exploded view to lift it clear of the running gear.',
+    chips:['Length 4,404 mm','Fully galvanised','Typ 85'] },
+  glass:{ t:'Glazing', s:'Green-tinted safety glass',
+    b:'A flat, upright glasshouse — a hallmark of early-eighties Audi design. Side glass is set into the shell; windscreen and rear window are bonded panels.',
+    chips:['Upright screen','Fast rear rake'] },
+  hood:{ t:'Bonnet', s:'Hinged at the scuttle',
+    b:'Opens nose-up to reveal the longitudinally mounted five-cylinder and its KKK turbocharger. Click again (or use the button) to open and close.',
+    chips:['Steel panel','Reveals I5'] },
+  engine:{ t:'2.2 L inline-five turbo', s:'20-valve · final specification',
+    b:'The 2,226 cc five-cylinder with KKK turbocharger and intercooler delivered 220 PS at 5,900 rpm and 309 Nm from 1,950 rpm — with an unmistakable odd-cylinder warble.',
+    chips:['2,226 cc','220 PS','309 Nm','KKK turbo'] },
+  wheel:{ t:'15″ alloy wheel', s:'195/60 VR15',
+    b:'Cast alloy wheels with ventilated disc brakes behind. Click to spin the wheel.',
+    chips:['15″','Vented front discs'] },
+  mirror:{ t:'Door mirror', s:'Aerodynamic housing',
+    b:'Body-coloured mirror mounted on the A-pillar base — one of the few exterior parts shared with the contemporary Coupé.',
+    chips:['Body colour'] },
+  grille:{ t:'Grille & four rings', s:'The family face',
+    b:'The wide slatted grille carries the chrome four-rings emblem — Audi\u2019s identity since the 1932 Auto Union merger.',
+    chips:['Four rings','Chrome slats'] },
+  headlights:{ t:'Quad headlamps', s:'H4 halogen',
+    b:'Four rectangular halogen lamps behind glass, flanked by amber indicators. Click to switch the lamps on and off.',
+    chips:['Halogen H4','Click = toggle'] },
+  taillights:{ t:'Tail lamp panel', s:'Full-width treatment',
+    b:'Wide horizontal tail lamps with the signature dark centre panel and \u201CAUDI\u201D lettering — instantly readable at night.',
+    chips:['Full width','Smoke centre'] },
+  bumper:{ t:'Bumper', s:'Impact-absorbing steel',
+    b:'Graphite-capped steel bumpers with rubber trim strips — the 1990 look, body-flush for its era.',
+    chips:['Steel core','Rubber trim'] },
+  spoiler:{ t:'Boot spoiler', s:'Rubber lip',
+    b:'The subtle boot-lid lip that distinguishes the quattro from its front-drive Coupé siblings.',
+    chips:['Trunk-mounted'] },
+  exhaust:{ t:'Exhaust system', s:'Single rear outlet',
+    b:'Stainless system with a large rear silencer — best inspected from the Underbody camera preset.',
+    chips:['Single outlet'] },
+  interior:{ t:'Cockpit', s:'Driver-focused',
+    b:'Deep-set sports seats, a three-spoke wheel and the era\u2019s crisp Audi switchgear, all wrapped around the famous angled centre console.',
+    chips:['Sports seats','5-speed gate'] },
+  chassis:{ t:'quattro drivetrain', s:'Permanent all-wheel drive',
+    b:'Viewed from below: the longitudinal engine, prop-shaft, transfer gear and rear-axle hardware that turned \u201Cquattro\u201D into its own word. Try the Underbody preset.',
+    chips:['Centre diff lock','Rear diff lock'] }
+};
+
+/* ════════════════════════════════════════════════════════════════
+   2 · UTILS — micro tween engine & easing
+   ════════════════════════════════════════════════════════════════ */
+const activeTweens = [];
+const Ease = {
+  linear: k=>k,
+  inOutCubic: k=> k<.5 ? 4*k*k*k : 1-Math.pow(-2*k+2,3)/2,
+  outCubic: k=> 1-Math.pow(1-k,3),
+  outBack: k=>{ const c=1.35; return 1 + (c+1)*Math.pow(k-1,3) + c*Math.pow(k-1,2); }
+};
+function tween(o){
+  const t = { delay:o.delay||0, dur:Math.max(o.dur||0.6,0.001), ease:o.ease||Ease.inOutCubic,
+              onUpdate:o.onUpdate, onComplete:o.onComplete, elapsed:0, dead:false };
+  activeTweens.push(t); return t;
+}
+function killTween(t){ if(t) t.dead = true; }
+function stepTweens(dt){
+  for (let i=activeTweens.length-1; i>=0; i--){
+    const t = activeTweens[i];
+    if (t.dead){ activeTweens.splice(i,1); continue; }
+    if (t.delay>0){ t.delay-=dt; continue; }
+    t.elapsed += dt;
+    const k = Math.min(t.elapsed/t.dur, 1);
+    if (t.onUpdate) t.onUpdate(t.ease(k), k);
+    if (k>=1){ activeTweens.splice(i,1); if (t.onComplete) t.onComplete(); }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   3 · RENDERER, SCENE, CAMERA, CONTROLS
+   ════════════════════════════════════════════════════════════════ */
+const stage = document.getElementById('stage');
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, powerPreference:'high-performance' });
+} catch(e){
+  stage.insertAdjacentHTML('beforeend','<div style="position:absolute;inset:0;display:grid;place-items:center;color:#9aa0ab;font-size:13px">WebGL is not available on this device.</div>');
+  return;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.setClearColor(0x000000, 0);                       // CSS gradient shows through
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x07080a, 17, 40);
+
+const camera = new THREE.PerspectiveCamera(42, 2, 0.1, 120);
+camera.position.set(11.5, 5.6, 12.5);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.62, 0);
+controls.enableDamping = true;  controls.dampingFactor = 0.06;
+controls.minDistance = 3.1;     controls.maxDistance = 17;
+controls.minPolarAngle = 0.04;  controls.maxPolarAngle = 3.05;   // allow underbody view
+controls.autoRotateSpeed = 0.9;
+
+/* ════════════════════════════════════════════════════════════════
+   4 · STAGE, ENVIRONMENT & LIGHTING
+   ════════════════════════════════════════════════════════════════ */
+/* Procedural studio HDR (softboxes) → PMREM for real reflections on paint */
+(function buildEnvironment(){
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const env = new THREE.Scene();
+  env.add(new THREE.Mesh(new THREE.BoxGeometry(30,30,30),
+          new THREE.MeshBasicMaterial({ color:0x0d0e13, side:THREE.BackSide })));
+  const panel = (w,h,r,g,b,x,y,z,rx,ry)=>{
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h),
+      new THREE.MeshBasicMaterial({ color:new THREE.Color(r,g,b), side:THREE.DoubleSide }));
+    m.position.set(x,y,z); m.rotation.set(rx,ry,0); env.add(m);
+  };
+  panel(14, 5, 5.5,5.5,5.5,   0, 11,  0,  Math.PI/2, 0);   // ceiling softbox
+  panel( 9, 3, 3.6,3.6,3.9,  12,  4,  0,  0, -Math.PI/2);  // right key strip
+  panel( 9, 3, 1.7,1.9,2.6, -12,  4,  0,  0,  Math.PI/2);  // left cool fill
+  panel(10, 1.6, 2.8,0.35,0.35, 0, 1, -12, 0, 0);           // red accent backdrop
+  scene.environment = pmrem.fromScene(env, 0.04).texture;
+  pmrem.dispose();
+})();
+
+/* Lights */
+scene.add(new THREE.HemisphereLight(0x3a4152, 0x0a0a0c, 0.55));
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.05);
+keyLight.position.set(7,10,6);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048,2048);
+keyLight.shadow.camera.left=-7; keyLight.shadow.camera.right=7;
+keyLight.shadow.camera.top=7;   keyLight.shadow.camera.bottom=-7;
+keyLight.shadow.camera.near=2;  keyLight.shadow.camera.far=30;
+keyLight.shadow.bias=-0.0004;   keyLight.shadow.normalBias=0.02;
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0x8fa3ff, 0.4);
+rimLight.position.set(-8,5,-7); scene.add(rimLight);
+
+/* Floor: shadow catcher + polar grid + turntable */
+const floor = new THREE.Mesh(new THREE.CircleGeometry(24,48),
+  new THREE.MeshStandardMaterial({ color:0x0a0b0e, roughness:0.95, metalness:0 }));
+floor.rotation.x = -Math.PI/2; floor.receiveShadow = true;
+scene.add(floor);
+
+const polar = new THREE.PolarGridHelper(13, 24, 6, 64, 0x2a2d33, 0x191b1f);
+polar.position.y = 0.012; polar.material.transparent = true; polar.material.opacity = 0.4;
+scene.add(polar);
+
+const table = new THREE.Mesh(new THREE.CylinderGeometry(3.42,3.58,0.09,64),
+  new THREE.MeshStandardMaterial({ color:0x121317, metalness:0.7, roughness:0.38 }));
+table.position.y = 0.045; table.receiveShadow = true;
+scene.add(table);
+const tableRing = new THREE.Mesh(new THREE.TorusGeometry(3.5,0.02,10,120),
+  new THREE.MeshStandardMaterial({ color:0xd7dade, metalness:1, roughness:0.22 }));
+tableRing.rotation.x = Math.PI/2; tableRing.position.y = 0.09; scene.add(tableRing);
+const redArc = new THREE.Mesh(new THREE.TorusGeometry(3.66,0.014,8,80,Math.PI*0.55),
+  new THREE.MeshStandardMaterial({ color:0x30040a, emissive:0xe30613, emissiveIntensity:0.9 }));
+redArc.rotation.x = Math.PI/2; redArc.position.y = 0.014; scene.add(redArc);
+
+/* ════════════════════════════════════════════════════════════════
+   5 · CAR CONSTRUCTION  (procedural Audi Quattro Typ 85)
+   Axes: +X = front · +Y = up · +Z = left side
+   ════════════════════════════════════════════════════════════════ */
+const MAT = {
+  paint : new THREE.MeshPhysicalMaterial({ color:PAINTS[0].hex, metalness:0.72, roughness:0.24, clearcoat:1, clearcoatRoughness:0.12, envMapIntensity:1.25 }),
+  glass : new THREE.MeshPhysicalMaterial({ color:0x10151d, metalness:0.1, roughness:0.06, transparent:true, opacity:0.85, envMapIntensity:1.5 }),
+  chrome: new THREE.MeshStandardMaterial({ color:0xd7dade, metalness:1, roughness:0.18, envMapIntensity:1.5 }),
+  dark  : new THREE.MeshStandardMaterial({ color:0x17181c, metalness:0.25, roughness:0.6 }),
+  rubber: new THREE.MeshStandardMaterial({ color:0x0f1013, metalness:0, roughness:0.95 }),
+  tire  : new THREE.MeshStandardMaterial({ color:0x0b0c0e, metalness:0, roughness:0.96 }),
+  rim   : new THREE.MeshStandardMaterial({ color:0xb9bec6, metalness:0.95, roughness:0.28, side:THREE.DoubleSide, envMapIntensity:1.3 }),
+  lampOff:new THREE.MeshStandardMaterial({ color:0xcfd3d8, metalness:0.2, roughness:0.15, emissive:0x000000 }),
+  tail  : new THREE.MeshStandardMaterial({ color:0x55070c, emissive:0xff1f2e, emissiveIntensity:0.35, roughness:0.3 }),
+  amber : new THREE.MeshStandardMaterial({ color:0x8a4a06, emissive:0xff8a12, emissiveIntensity:0.12, roughness:0.4 }),
+  interior:new THREE.MeshStandardMaterial({ color:0x15171c, roughness:0.85, metalness:0.05 }),
+  seat  : new THREE.MeshStandardMaterial({ color:0x232630, roughness:0.8, metalness:0.05 }),
+  engine: new THREE.MeshStandardMaterial({ color:0x2b2e34, metalness:0.55, roughness:0.5 }),
+  engineAlu:new THREE.MeshStandardMaterial({ color:0x9ba1aa, metalness:0.85, roughness:0.35 })
+};
+const paintMats = [ MAT.paint ];   // cloned per painted part for independent hover highlight
+
+function box(w,h,d,mat,x,y,z){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+  m.position.set(x,y,z); return m;
+}
+function sideDetail(points, z, material, radius=0.012){
+  const curve = new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p[0],p[1],z)));
+  return new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(12,points.length*5), radius, 6, false), material);
+}
+
+/* — 5.1 body shell: side-profile shape with wheel arches + window holes, extruded — */
+function buildShellGeometry(){
+  const s = new THREE.Shape();
+  s.moveTo( 2.32, 0.33); s.lineTo( 2.36, 0.55); s.lineTo( 2.30, 0.66);   // nose face
+  s.lineTo( 2.22, 0.50); s.lineTo( 1.10, 0.50); s.lineTo( 1.02, 0.76);   // open engine bay
+  s.lineTo( 0.72, 0.83); s.lineTo( 0.05, 1.30);                          // cowl + windscreen
+  s.lineTo(-1.18, 1.34);                                                 // roof
+  s.lineTo(-1.72, 1.04); s.lineTo(-2.15, 0.98); s.lineTo(-2.32, 0.90);   // glass + trunk
+  s.lineTo(-2.36, 0.62); s.lineTo(-2.32, 0.33);                          // tail face
+  s.lineTo(-1.54, 0.33);
+  s.absarc(-1.12, 0.33, 0.42, Math.PI, 0, true);                         // rear arch
+  s.lineTo( 0.98, 0.33);
+  s.absarc( 1.40, 0.33, 0.42, Math.PI, 0, true);                         // front arch
+  s.lineTo( 2.32, 0.33); s.closePath();
+
+  const winF = new THREE.Path();   // front door glass (clockwise = hole)
+  winF.moveTo( 0.62,0.88); winF.lineTo(-0.04,0.88); winF.lineTo(-0.04,1.22); winF.lineTo(0.18,1.20); winF.closePath();
+  const winR = new THREE.Path();   // rear quarter glass
+  winR.moveTo(-0.18,0.88); winR.lineTo(-1.26,0.88); winR.lineTo(-1.06,1.21); winR.lineTo(-0.18,1.22); winR.closePath();
+  s.holes.push(winF, winR);
+
+  const g = new THREE.ExtrudeGeometry(s, { depth:1.66, bevelEnabled:true,
+    bevelThickness:0.055, bevelSize:0.05, bevelSegments:3, curveSegments:16 });
+  g.translate(0,0,-0.83);
+  return g;
+}
+
+/* — 5.2 part groups — */
+const carRoot = new THREE.Group(); scene.add(carRoot);
+const PARTS = [];                  // registry: {id, group, home, offset, progress, tweenRef}
+function registerPart(id, group, offset){
+  group.traverse(n=>{ if(n.isMesh) n.userData.partId = id; });
+  PARTS.push({ id, group, home:group.position.clone(),
+    offset:new THREE.Vector3(offset[0],offset[1],offset[2]), progress:1, tweenRef:null });
+  return group;
+}
+
+/* chassis & drivetrain (visible from the Underbody preset) */
+const chassisG = new THREE.Group();
+chassisG.add(box(4.55,0.05,1.62, MAT.dark, 0,0.315,0));                 // floor pan
+chassisG.add(box(3.40,0.10,0.34, MAT.dark, 0,0.25,0));                  // transmission tunnel
+const prop = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,3.0,12), MAT.engineAlu);
+prop.rotation.z = Math.PI/2; prop.position.set(0.1,0.24,0); chassisG.add(prop);
+chassisG.add(box(0.20,0.16,0.24, MAT.engine, 1.40,0.30,0));             // front diff
+chassisG.add(box(0.22,0.18,0.26, MAT.engine, -1.12,0.30,0));            // rear diff
+[[1.40,0.42],[1.40,-0.42],[-1.12,0.42],[-1.12,-0.42]].forEach(p=>{
+  const ax = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.6,10), MAT.engineAlu);
+  ax.rotation.x = Math.PI/2; ax.position.set(p[0],0.33,p[1]); chassisG.add(ax);
+});
+carRoot.add(registerPart('chassis', chassisG, [0,0,0]));
+
+/* exhaust (pipe + silencer live under the shell) */
+const exhaustG = new THREE.Group();
+const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.032,3.1,12), MAT.chrome);
+pipe.rotation.z = Math.PI/2; pipe.position.set(-0.35,0.24,0.20); exhaustG.add(pipe);
+exhaustG.add(box(0.52,0.13,0.30, MAT.dark, -1.92,0.26,0.20));
+const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.14,12), MAT.chrome);
+tip.rotation.z = Math.PI/2; tip.position.set(-2.34,0.28,0.20); exhaustG.add(tip);
+carRoot.add(registerPart('exhaust', exhaustG, [-1.0,-0.2,0.45]));
+
+/* interior (seen through the glazing) */
+const interiorG = new THREE.Group();
+interiorG.add(box(2.40,0.05,1.50, MAT.interior, -0.45,0.40,0));         // cabin floor
+interiorG.add(box(0.46,0.26,1.44, MAT.interior,  0.46,0.95,0));         // dashboard
+interiorG.add(box(1.50,0.35,0.03, MAT.interior, -0.10,0.78, 0.83));     // door cards
+interiorG.add(box(1.50,0.35,0.03, MAT.interior, -0.10,0.78,-0.83));
+[-0.36,0.36].forEach(z=>{                                               // front seats
+  interiorG.add(box(0.52,0.14,0.50, MAT.seat, -0.28,0.62,z));
+  const back = box(0.12,0.52,0.50, MAT.seat, -0.54,0.88,z); back.rotation.z = 0.14; interiorG.add(back);
+});
+interiorG.add(box(0.48,0.16,1.36, MAT.seat, -1.05,0.64,0));             // rear bench
+const benchBack = box(0.14,0.50,1.30, MAT.seat, -1.29,0.90,0); benchBack.rotation.z = -0.25; interiorG.add(benchBack);
+const wheelRim = new THREE.Mesh(new THREE.TorusGeometry(0.18,0.028,10,32), MAT.interior);
+wheelRim.position.set(0.30,1.02,0.42); wheelRim.rotation.y = Math.PI/2; wheelRim.rotation.x = -0.35; interiorG.add(wheelRim);
+carRoot.add(registerPart('interior', interiorG, [0,0.25,0]));
+
+/* engine — hidden until the bonnet opens (pops up into the bay) */
+const engineG = new THREE.Group();
+engineG.add(box(1.25,0.03,1.12, MAT.interior, 1.66,0.415,0));           // dark bay floor insert
+engineG.add(box(0.50,0.18,0.42, MAT.engine, 1.62,0.60,0));              // block
+engineG.add(box(0.48,0.03,0.20, MAT.engineAlu, 1.62,0.705,0));          // cam cover
+// Five visible runners suggest the longitudinal 20-valve five-cylinder layout.
+for(let i=0;i<5;i++){
+  const runner = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.38,10), MAT.engineAlu);
+  runner.rotation.z = -0.58; runner.position.set(1.66,0.73,-0.37+i*0.185); engineG.add(runner);
+  engineG.add(box(0.055,0.035,0.08, MAT.dark, 1.86,0.61,-0.37+i*0.185));
+}
+const turbo = new THREE.Mesh(new THREE.TorusGeometry(0.07,0.035,10,20), MAT.engineAlu);
+turbo.position.set(1.35,0.57,0.30); turbo.rotation.y = Math.PI/2; engineG.add(turbo);
+engineG.add(box(0.05,0.24,1.05, MAT.dark, 2.17,0.62,0));                // radiator
+const batt = box(0.20,0.12,0.14, MAT.dark, 1.25,0.55,-0.34); engineG.add(batt);
+engineG.visible = false;
+carRoot.add(registerPart('engine', engineG, [1.5,-0.1,0.8]));
+
+/* body shell (painted) */
+const shellMat = MAT.paint.clone(); paintMats.push(shellMat);
+const shellG = new THREE.Group();
+const shellMesh = new THREE.Mesh(buildShellGeometry(), shellMat);
+shellMesh.receiveShadow = true; shellG.add(shellMesh);
+/* seams, trim, handles, wipers */
+[0.878,-0.878].forEach(z=>{
+  shellG.add(box(0.012,0.42,0.014, MAT.rubber,  0.72,0.62,z));
+  shellG.add(box(0.012,0.42,0.014, MAT.rubber, -0.10,0.62,z));
+  shellG.add(box(3.30,0.016,0.014, MAT.dark,   -0.05,0.66,z));
+  shellG.add(box(0.14,0.03,0.025, MAT.dark,      0.02,0.78,z));
+  shellG.add(box(0.11,0.018,0.022, MAT.chrome,   0.02,0.80,z));
+  shellG.add(sideDetail([[0.66,0.91],[0.64,0.47],[-0.54,0.46],[-0.58,0.91]],z,MAT.dark,0.009));
+  shellG.add(sideDetail([[-0.17,0.88],[-0.17,1.23]],z,MAT.dark,0.012));
+  shellG.add(sideDetail([[0.62,0.88],[-0.04,0.88],[-0.04,1.22],[0.18,1.20],[0.62,0.88]],z,MAT.dark,0.014));
+  shellG.add(sideDetail([[-0.18,0.88],[-1.26,0.88],[-1.06,1.21],[-0.18,1.22],[-0.18,0.88]],z,MAT.dark,0.014));
+  shellG.add(box(2.82,0.075,0.024, MAT.rubber, -0.02,0.39,z));
+  [1.40,-1.12].forEach(x=>{
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(0.435,0.043,8,36,Math.PI), shellMat);
+    arch.position.set(x,0.34,z*0.98); shellG.add(arch);
+    const archTrim = new THREE.Mesh(new THREE.TorusGeometry(0.438,0.012,6,36,Math.PI), MAT.dark);
+    archTrim.position.set(x,0.34,z*1.005); shellG.add(archTrim);
+  });
+});
+[0.25,-0.25].forEach(z=>{ const w = box(0.36,0.016,0.03, MAT.rubber, 0.52,0.90,z); w.rotation.z = 2.45; shellG.add(w); });
+carRoot.add(registerPart('shell', shellG, [0,1.05,0]));
+
+/* glazing: bonded screen + backlight slabs, side glass fills window holes */
+const glassG = new THREE.Group();
+const ws = box(0.86,0.025,1.44, MAT.glass, 0.402,1.09,0);  ws.rotation.z = Math.atan2(0.47,-0.67); ws.castShadow=false; glassG.add(ws);
+const rg = box(0.66,0.025,1.44, MAT.glass, -1.465,1.216,0); rg.rotation.z = Math.atan2(-0.30,-0.54); rg.castShadow=false; glassG.add(rg);
+[ [[0.62,0.88],[-0.04,0.88],[-0.04,1.22],[0.18,1.20]],
+  [[-0.18,0.88],[-1.26,0.88],[-1.06,1.21],[-0.18,1.22]] ].forEach(pts=>{
+  const sh = new THREE.Shape();
+  sh.moveTo(pts[0][0],pts[0][1]); pts.slice(1).forEach(p=>sh.lineTo(p[0],p[1])); sh.closePath();
+  const gm = new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:1.48,bevelEnabled:false}), MAT.glass);
+  gm.position.z = -0.74; gm.castShadow = false; glassG.add(gm);
+});
+carRoot.add(registerPart('glass', glassG, [0,1.5,0]));
+
+/* bonnet (interactive — hinged at the scuttle) */
+const hoodMat = MAT.paint.clone(); paintMats.push(hoodMat);
+const hoodPivot = new THREE.Group(); hoodPivot.position.set(1.00,0.82,0);
+const hoodMesh = box(1.27,0.036,1.55, hoodMat, 0.63,-0.06,0);
+hoodMesh.rotation.z = -0.0952; hoodPivot.add(hoodMesh);
+carRoot.add(hoodPivot); registerPart('hood', hoodPivot, [0.55,1.75,0]);
+
+/* trunk lid (static panel, explodes with everything else) */
+const trunkMat = MAT.paint.clone(); paintMats.push(trunkMat);
+const trunkG = new THREE.Group();
+const trunkLid = box(0.48,0.035,1.5, trunkMat, -1.935,1.03,0);
+trunkLid.rotation.z = Math.atan2(-0.06,-0.43); trunkG.add(trunkLid);
+carRoot.add(registerPart('trunk', trunkG, [-0.5,1.65,0]));
+
+/* spoiler lip */
+const spoilerG = new THREE.Group();
+const lip = box(0.20,0.028,1.44, MAT.rubber, -2.18,1.00,0); lip.rotation.z = -0.10; spoilerG.add(lip);
+carRoot.add(registerPart('spoiler', spoilerG, [-0.45,1.55,0]));
+
+/* front fascia: grille + four rings + quattro script */
+const grilleG = new THREE.Group();
+grilleG.add(box(0.035,0.17,0.80, MAT.rubber, 2.372,0.545,0));
+for(let i=0;i<4;i++) grilleG.add(box(0.028,0.012,0.76, MAT.chrome, 2.38,0.49+i*0.036,0));
+for(let i=0;i<4;i++){
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.045,0.0085,8,24), MAT.chrome);
+  ring.rotation.y = Math.PI/2; ring.position.set(2.398,0.60,-0.093+i*0.062); grilleG.add(ring);
+}
+(function quattroScript(){
+  const cv = document.createElement('canvas'); cv.width=512; cv.height=110;
+  const ctx = cv.getContext('2d');
+  ctx.font='italic 700 82px Inter, Arial, sans-serif'; ctx.fillStyle='#e30613';
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('quattro',256,58);
+  const tx = new THREE.CanvasTexture(cv);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.46,0.10),
+    new THREE.MeshBasicMaterial({ map:tx, transparent:true }));
+  m.rotation.y = Math.PI/2; m.position.set(2.399,0.475,0); grilleG.add(m);
+})();
+carRoot.add(registerPart('grille', grilleG, [1.0,0.25,0]));
+
+/* headlamps (interactive — click toggles the beams) */
+const lampsG = new THREE.Group();
+[[0.60,0.56],[0.26,0.56],[-0.60,0.56],[-0.26,0.56]].forEach(p=>{
+  const lens = box(0.05,0.13,0.30, MAT.lampOff, 2.335,p[1],p[0]); lampsG.add(lens);
+  lampsG.add(box(0.056,0.15,0.32, MAT.chrome, 2.325,p[1],p[0]));
+});
+[[0.66],[-0.66]].forEach(p=> lampsG.add(box(0.03,0.08,0.16, MAT.amber, 2.37,0.44,p[0])));
+carRoot.add(registerPart('headlights', lampsG, [1.25,0.45,0]));
+
+/* tail lamps */
+const tailG = new THREE.Group();
+tailG.add(box(0.04,0.20,0.52, MAT.tail, -2.375,0.72, 0.55));
+tailG.add(box(0.04,0.20,0.52, MAT.tail, -2.375,0.72,-0.55));
+tailG.add(box(0.042,0.20,0.42, MAT.rubber, -2.378,0.72,0));
+carRoot.add(registerPart('taillights', tailG, [-1.15,0.35,0]));
+
+/* bumpers + air dam */
+const frontBumperG = new THREE.Group();
+frontBumperG.add(box(0.10,0.14,1.84, MAT.dark, 2.43,0.38,0));
+frontBumperG.add(box(0.11,0.02,1.85, MAT.chrome, 2.43,0.40,0));
+frontBumperG.add(box(0.06,0.10,1.70, MAT.rubber, 2.40,0.24,0));   // air dam
+carRoot.add(registerPart('front-bumper', frontBumperG, [1.15,0.05,0]));
+const rearBumperG = new THREE.Group();
+rearBumperG.add(box(0.10,0.14,1.84, MAT.dark, -2.43,0.38,0));
+rearBumperG.add(box(0.11,0.02,1.85, MAT.chrome, -2.43,0.40,0));
+carRoot.add(registerPart('rear-bumper', rearBumperG, [-1.15,0.05,0]));
+
+/* mirrors */
+function mirror(z){
+  const g = new THREE.Group(); const mm = MAT.paint.clone(); paintMats.push(mm);
+  g.add(box(0.13,0.08,0.11, mm, 0.60,1.00,z));
+  g.add(box(0.05,0.03,0.10, MAT.dark, 0.60,0.95,z*0.94));
+  return g;
+}
+carRoot.add(registerPart('mirror', mirror( 0.90), [0.25,1.35, 0.55]));
+carRoot.add(registerPart('mirror', mirror(-0.90), [0.25,1.35,-0.55]));
+
+/* wheels ×4 (each its own part — click to spin) */
+const wheelSpinners = [];
+function buildWheel(){
+  const g = new THREE.Group(); const spin = new THREE.Group(); g.add(spin);
+  const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.355,0.355,0.22,36), MAT.tire);
+  tire.rotation.x = Math.PI/2; spin.add(tire);
+  const sidewall = new THREE.Mesh(new THREE.TorusGeometry(0.29,0.012,6,36), MAT.rubber);
+  sidewall.position.z=0.112; spin.add(sidewall);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.235,0.235,0.21,32,1,true), MAT.rim);
+  barrel.rotation.x = Math.PI/2; spin.add(barrel);
+  [0.108,-0.108].forEach(z=>{
+    const l = new THREE.Mesh(new THREE.TorusGeometry(0.235,0.013,8,36), MAT.rim);
+    l.position.z = z; spin.add(l);
+  });
+  for(let i=0;i<5;i++){
+    const spokeShape = new THREE.Shape();
+    spokeShape.moveTo(-0.052,0.065); spokeShape.lineTo(0.052,0.065);
+    spokeShape.lineTo(0.082,0.218); spokeShape.lineTo(-0.082,0.218); spokeShape.closePath();
+    const spoke = new THREE.Mesh(new THREE.ExtrudeGeometry(spokeShape,{depth:0.035,bevelEnabled:true,bevelThickness:0.006,bevelSize:0.006,bevelSegments:1}),MAT.rim);
+    spoke.position.z=0.075; spoke.rotation.z=i*Math.PI*2/5; spin.add(spoke);
+  }
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.064,0.064,0.23,20), MAT.chrome);
+  hub.rotation.x = Math.PI/2; spin.add(hub);
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.155,0.155,0.02,24), MAT.dark);
+  disc.rotation.x = Math.PI/2; disc.position.z = -0.03; spin.add(disc);
+  g.userData.spin = spin; wheelSpinners.push(spin);
+  return g;
+}
+[[1.40, 0.72,'wheel'],[1.40,-0.72,'wheel'],[-1.12, 0.72,'wheel'],[-1.12,-0.72,'wheel']].forEach((w,i)=>{
+  const g = buildWheel(); g.position.set(w[0],0.34,w[1]);
+  carRoot.add(registerPart('wheel', g, [0,0,w[1]>0?1.05:-1.05]));
+});
+
+/* shadow flags */
+carRoot.traverse(n=>{ if(n.isMesh){ n.castShadow = (n.material!==MAT.glass); n.userData.origColorHex = null; } });
+
+/* headlamp beams (toggleable) */
+const lampLights = [];
+[0.45,-0.45].forEach(z=>{
+  const sl = new THREE.SpotLight(0xffe9c4, 0, 22, 0.55, 0.65, 1.6);
+  sl.position.set(2.42,0.60,z);
+  sl.target.position.set(9,0.1,z*2.2);
+  scene.add(sl); scene.add(sl.target); lampLights.push(sl);
+});
+
+/* ════════════════════════════════════════════════════════════════
+   6 · PICKING, HOVER & INFO PANEL
+   ════════════════════════════════════════════════════════════════ */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const tipEl = document.getElementById('tip');
+const panelEl = document.getElementById('panel');
+let hovered = null, selectedId = null;
+
+function partById(id){ return PARTS.find(p=>p.id===id); }
+function chainVisible(o){ while(o){ if(o.visible===false) return false; o=o.parent; } return true; }
+function pick(clientX, clientY){
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((clientX-r.left)/r.width)*2-1, -((clientY-r.top)/r.height)*2+1);
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObjects(carRoot.children, true);
+  for(const h of hits){ if(chainVisible(h.object)) return h.object.userData.partId || null; }
+  return null;
+}
+function setEmissive(id, hex){
+  const p = partById(id); if(!p) return;
+  p.group.traverse(n=>{ if(n.isMesh && n.material && n.material.emissive) n.material.emissive.setHex(hex); });
+}
+function setHover(id){
+  if(hovered===id) return;
+  if(hovered && hovered!==selectedId) setEmissive(hovered, 0x000000);
+  hovered = id;
+  if(id && id!==selectedId) setEmissive(id, 0x2a070b);
+  renderer.domElement.style.cursor = id ? 'pointer' : 'grab';
+}
+
+/* panel rendering */
+const pKicker=document.getElementById('pKicker'), pTitle=document.getElementById('pTitle'),
+      pSub=document.getElementById('pSub'), pText=document.getElementById('pText'),
+      pChips=document.getElementById('pChips'), pActions=document.getElementById('pActions');
+
+function ctxAction(id){
+  switch(id){
+    case 'hood':       return { label: state.hoodOpen?'Close bonnet':'Open bonnet', fn:()=>toggleHood() };
+    case 'headlights': return { label: state.lamps?'Switch off':'Switch on', fn:()=>toggleLamps() };
+    case 'engine':     return { label:'Open bonnet', fn:()=>{ if(!state.hoodOpen) toggleHood(true); } };
+    case 'wheel':      return { label:'Spin wheel', fn:()=>spinLastWheel() };
+    case 'overview':   return { label:'▶ Play build sequence', fn:()=>playAssembly(true) };
+    default: return null;
+  }
+}
+function showInfo(id){
+  const info = PART_INFO[id==='mirror'?'mirror':id] || PART_INFO[id] || PART_INFO.overview;
+  selectedId = id;
+  pKicker.textContent = id==='overview' ? 'Overview' : 'Component';
+  pTitle.textContent = info.t; pSub.textContent = info.s; pText.textContent = info.b;
+  pChips.innerHTML=''; (info.chips||[]).forEach(c=>{ const s=document.createElement('span'); s.textContent=c; pChips.appendChild(s); });
+  pActions.innerHTML='';
+  const ctx = ctxAction(id);
+  if(ctx){ const b=document.createElement('button'); b.className='p-act primary'; b.textContent=ctx.label; b.onclick=()=>{ctx.fn(); showInfo(id);}; pActions.appendChild(b); }
+  if(id!=='overview'){
+    const f=document.createElement('button'); f.className='p-act'; f.textContent='Frame'; f.onclick=()=>framePart(id); pActions.appendChild(f);
+  }
+  panelEl.classList.add('open');
+  /* highlight */
+  PARTS.forEach(p=>setEmissive(p.id,0x000000));
+  if(id!=='overview') setEmissive(id, 0x5c0f16);
+}
+function hidePanel(){ panelEl.classList.remove('open'); if(selectedId) setEmissive(selectedId,0x000000); selectedId=null; }
+document.getElementById('pClose').addEventListener('click', hidePanel);
+document.getElementById('btnOverview').addEventListener('click', ()=>showInfo('overview'));
+
+/* camera framing of a part */
+let camTween = null;
+function flyTo(pos, tgt, dur){
+  killTween(camTween); controls.autoRotate = false; syncToggles();
+  const p0=camera.position.clone(), t0=controls.target.clone();
+  const p1=new THREE.Vector3(pos[0],pos[1],pos[2]), t1=new THREE.Vector3(tgt[0],tgt[1],tgt[2]);
+  camTween = tween({ dur:dur||1.2, ease:Ease.inOutCubic, onUpdate:e=>{
+    camera.position.lerpVectors(p0,p1,e); controls.target.lerpVectors(t0,t1,e);
+  }});
+}
+function framePart(id){
+  const p = partById(id); if(!p) return;
+  const sph = new THREE.Box3().setFromObject(p.group).getBoundingSphere(new THREE.Sphere());
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  const dist = Math.max(sph.radius*2.9, 2.1);
+  const np = sph.center.clone().addScaledVector(dir, dist);
+  flyTo([np.x,np.y,np.z],[sph.center.x,sph.center.y,sph.center.z],1.0);
+}
+
+/* pointer wiring (click vs drag discrimination) */
+let downX=0, downY=0, lastWheelPart=null;
+renderer.domElement.addEventListener('pointerdown', e=>{ downX=e.clientX; downY=e.clientY; });
+renderer.domElement.addEventListener('pointerup', e=>{
+  if(Math.hypot(e.clientX-downX, e.clientY-downY) > 6) return;
+  const id = pick(e.clientX, e.clientY);
+  if(!id){ hidePanel(); return; }
+  /* primary interactive parts respond immediately */
+  if(id==='hood') toggleHood();
+  else if(id==='headlights') toggleLamps();
+  else if(id==='wheel'){ const p=partById(id); lastWheelPart=p; spinWheel(p); }
+  else if(id==='engine' && !state.hoodOpen) toggleHood(true);
+  showInfo(id);
+});
+renderer.domElement.addEventListener('dblclick', e=>{
+  const id = pick(e.clientX, e.clientY); if(id) framePart(id);
+});
+renderer.domElement.addEventListener('pointermove', e=>{
+  const id = pick(e.clientX, e.clientY);
+  setHover(id);
+  if(id){
+    const info = PART_INFO[id==='mirror'?'mirror':id];
+    tipEl.innerHTML = (info?info.t:id) + '<small>CLICK TO INSPECT</small>';
+    const r = stage.getBoundingClientRect();
+    tipEl.style.left = (e.clientX - r.left) + 'px';
+    tipEl.style.top  = (e.clientY - r.top)  + 'px';
+    tipEl.classList.add('on');
+  } else tipEl.classList.remove('on');
+});
+renderer.domElement.addEventListener('pointerleave', ()=>{ setHover(null); tipEl.classList.remove('on'); });
+
+/* ════════════════════════════════════════════════════════════════
+   7 · EXPLODE / ASSEMBLY SEQUENCES + INTERACTIVE PARTS
+   ════════════════════════════════════════════════════════════════ */
+const state = { explode:false, lamps:false, wire:false, rotate:false, hoodOpen:false };
+
+function applyProgress(p){
+  p.group.position.copy(p.home).addScaledVector(p.offset, 1 - p.progress);
+}
+function tweenProgress(p, to, delay, ease){
+  killTween(p.tweenRef);
+  const from = p.progress;
+  p.tweenRef = tween({ dur:0.9, delay:delay||0, ease:ease||Ease.inOutCubic,
+    onUpdate:e=>{ p.progress = from + (to-from)*e; applyProgress(p); },
+    onComplete:()=>{ p.tweenRef=null; } });
+}
+function setExploded(on){
+  state.explode = on;
+  PARTS.forEach((p,i)=>{
+    const d = on ? (PARTS.length-1-i)*0.035 : i*0.05;
+    tweenProgress(p, on?0:1, d);
+  });
+  if(on && selectedId==='interior') {} // no-op, keeps selection valid
+  syncToggles();
+}
+function playAssembly(withCamera){
+  state.explode = false;
+  PARTS.forEach(p=>{ killTween(p.tweenRef); p.progress = 0; applyProgress(p); });
+  PARTS.forEach((p,i)=> tweenProgress(p, 1, 0.15 + i*0.11, Ease.outBack));
+  if(withCamera) flyTo(VIEWS.hero.pos, VIEWS.hero.tgt, 2.4);
+  if(state.hoodOpen){ state.hoodOpen=false; hoodPivot.rotation.z=0; engineG.visible=false; }
+  syncToggles();
+}
+
+/* bonnet */
+function toggleHood(forceOpen){
+  const target = forceOpen===true ? true : !state.hoodOpen;
+  if(target===state.hoodOpen && forceOpen===true){ return; }
+  state.hoodOpen = target;
+  const from = hoodPivot.rotation.z, to = target ? 0.86 : 0;
+  if(target){ engineG.visible = true; engineG.position.y = -0.14; }
+  tween({ dur:0.75, ease:Ease.inOutCubic, onUpdate:e=>{
+    hoodPivot.rotation.z = from + (to-from)*e;
+    if(target) engineG.position.y = -0.14*(1-e);
+  }, onComplete:()=>{ if(!target) engineG.visible=false; engineG.position.y=0; }});
+}
+/* lamps */
+function toggleLamps(){
+  state.lamps = !state.lamps;
+  const on = state.lamps;
+  tween({ dur:0.4, ease:Ease.outCubic, onUpdate:e=>{
+    lampLights.forEach(l=> l.intensity = (on?2.4:0)*(on?e:1-e));
+    MAT.lampOff.emissive.setHex(0xffe9c4);
+    MAT.lampOff.emissiveIntensity = on ? 1.8*e : 1.8*(1-e);
+  }});
+  syncToggles();
+}
+/* wheel spin */
+function spinWheel(p){
+  const spin = p.group.userData.spin; if(!spin) return;
+  const from = spin.rotation.z;
+  tween({ dur:1.0, ease:Ease.outCubic, onUpdate:e=>{ spin.rotation.z = from + Math.PI*2*e; }});
+}
+function spinLastWheel(){ if(lastWheelPart) spinWheel(lastWheelPart); else { const w=partById('wheel'); if(w) spinWheel(w);} }
+
+/* ════════════════════════════════════════════════════════════════
+   8 · DOCK, SWATCHES, KEYBOARD
+   ════════════════════════════════════════════════════════════════ */
+const $ = id=>document.getElementById(id);
+const btnExplode=$('btnExplode'), btnAssemble=$('btnAssemble'), btnRotate=$('btnRotate'),
+      btnWire=$('btnWire'), btnLamps=$('btnLamps'), btnReset=$('btnReset');
+
+function syncToggles(){
+  btnExplode.classList.toggle('active', state.explode);
+  btnRotate.classList.toggle('active', controls.autoRotate);
+  btnWire.classList.toggle('active', state.wire);
+  btnLamps.classList.toggle('active', state.lamps);
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.remove('active'));
+}
+function goToView(name){
+  const v = VIEWS[name]; if(!v) return;
+  if(name==='engine' && !state.hoodOpen) toggleHood(true);
+  flyTo(v.pos, v.tgt, 1.25);
+  const btn = document.querySelector('.view-btn[data-view="'+name+'"]');
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+document.querySelectorAll('.view-btn').forEach(b=>{
+  b.addEventListener('click', ()=>goToView(b.dataset.view));
+});
+btnExplode.addEventListener('click', ()=>setExploded(!state.explode));
+btnAssemble.addEventListener('click', ()=>playAssembly(false));
+btnRotate.addEventListener('click', ()=>{ controls.autoRotate = !controls.autoRotate; syncToggles(); });
+btnLamps.addEventListener('click', toggleLamps);
+btnReset.addEventListener('click', ()=>{ hidePanel(); goToView('hero'); });
+btnWire.addEventListener('click', ()=>{
+  state.wire = !state.wire;
+  carRoot.traverse(n=>{ if(n.isMesh && n.material) n.material.wireframe = state.wire; });
+  syncToggles();
+});
+
+/* paint swatches */
+const swatchWrap = $('swatches');
+const swLabel = document.createElement('span'); swLabel.className='dock-label'; swLabel.textContent='Paint';
+swatchWrap.appendChild(swLabel);
+PAINTS.forEach((p,i)=>{
+  const b = document.createElement('button');
+  b.className = 'swatch' + (i===0?' active':'');
+  b.style.background = p.css;
+  b.title = p.name; b.setAttribute('aria-label','Paint: '+p.name);
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+    b.classList.add('active');
+    paintMats.forEach(m=>{
+      const from = m.color.clone(), to = new THREE.Color(p.hex);
+      tween({ dur:0.7, ease:Ease.inOutCubic, onUpdate:e=> m.color.copy(from).lerp(to,e) });
+    });
+  });
+  swatchWrap.appendChild(b);
+});
+
+/* keyboard shortcuts */
+const viewKeys = ['hero','side','rear','top','under','engine'];
+window.addEventListener('keydown', e=>{
+  if(e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  const k = e.key.toLowerCase();
+  if(k>='1' && k<='6') goToView(viewKeys[+k-1]);
+  else if(k==='e') setExploded(!state.explode);
+  else if(k==='a') playAssembly(true);
+  else if(k==='l') toggleLamps();
+  else if(k==='w') btnWire.click();
+  else if(k==='r'){ hidePanel(); goToView('hero'); }
+  else if(k==='o') showInfo('overview');
+  else if(k===' '){ e.preventDefault(); controls.autoRotate=!controls.autoRotate; syncToggles(); }
+  else if(k==='escape') hidePanel();
+});
+
+/* ════════════════════════════════════════════════════════════════
+   9 · LOADER + INTRO SEQUENCE
+   ════════════════════════════════════════════════════════════════ */
+const loader = $('loader'), loadBar = $('loadBar');
+function runIntro(){
+  /* simulated but honest progress bar tied to init completion */
+  let pct = 0;
+  const iv = setInterval(()=>{
+    pct = Math.min(100, pct + 14 + Math.random()*10);
+    loadBar.style.width = pct+'%';
+    if(pct>=100){
+      clearInterval(iv);
+      setTimeout(()=>{
+        loader.classList.add('done');
+        setTimeout(()=>loader.remove(), 800);
+        if(!REDUCED){
+          PARTS.forEach(p=>{ p.progress = 0; applyProgress(p); });
+          playAssembly(true);
+        } else {
+          flyTo(VIEWS.hero.pos, VIEWS.hero.tgt, 0.01);
+        }
+        setTimeout(()=>showInfo('overview'), REDUCED?300:2400);
+      }, 250);
+    }
+  }, 90);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   10 · RESIZE & RENDER LOOP
+   ════════════════════════════════════════════════════════════════ */
+function onResize(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+if(window.ResizeObserver) new ResizeObserver(onResize).observe(stage);
+window.addEventListener('resize', onResize);
+onResize();
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(()=>{
+  const dt = Math.min(clock.getDelta(), 0.05);
+  stepTweens(dt);
+  redArc.rotation.z += dt*0.12;          // subtle living accent on the turntable
+  controls.update();
+  renderer.render(scene, camera);
+});
+
+syncToggles();
+runIntro();
+
+})();
+</script>
+</body>
+</html>
